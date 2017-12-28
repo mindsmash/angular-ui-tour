@@ -19,9 +19,9 @@
     "test/"
   ],
   "dependencies": {
-    "angular": ">=1.5",
-    "angular-sanitize": ">=1.5",
-    "cfp-angular-hotkeys": "1.7.0",
+    "angular": "1.6.5",
+    "angular-sanitize": "1.6.5",
+    "angular-hotkeys": "git@github.com:mindsmash/angular-hotkeys.git#001e23cd27f2c5d9c6d6eec36dc904c3b679fde2",
     "hone": "1.0.3",
     "tether": "1.4.0",
     "angular-scroll": "1.0.0",
@@ -32,6 +32,6 @@
     "angular-route": ">=1.3"
   },
   "resolutions": {
-    "angular": "latest"
+    "angular": "1.6.5"
   }
 }

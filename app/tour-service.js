@@ -1,6 +1,6 @@
 import angular from 'angular';
 
-export default function uiTourService($controller, $q) {
+export default function uiTourService($controller) {
     'ngInject';
 
     var service = {},
@@ -52,25 +52,6 @@ export default function uiTourService($controller, $q) {
 
         config.name = name;
         return $controller('uiTourController').init(config);
-    };
-
-    /**
-     * Checks to see if there are any tours that are waiting.
-     * Useful when checking if navigation is due to tour or browser
-     *
-     * @returns {boolean} if there is one or more waiting tours
-     */
-    service.isTourWaiting = function () {
-        return tours.reduce((isWaiting, tour) => isWaiting || tour.getStatus() === tour.Status.WAITING, false);
-    };
-
-    /**
-     * Ends all tours
-     *
-     * @returns {Promise} resolved once all tours have ended
-     */
-    service.endAllTours = function () {
-        return $q.all(tours.map(tour => tour.end()));
     };
 
     /**

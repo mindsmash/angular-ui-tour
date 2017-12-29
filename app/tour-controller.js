@@ -1,24 +1,21 @@
 import angular from 'angular';
-import EventEmitter from 'events';
 
-export default function uiTourController($timeout, $q, $filter, $document, TourConfig, uiTourBackdrop, uiTourService, TourStepService, hotkeys) {
+export default function uiTourController($timeout, $q, $filter, TourConfig, uiTourBackdrop, uiTourService, ezEventEmitter, hotkeys) {
     'ngInject';
 
-    var self = new EventEmitter(),
+    var self = this,
         stepList = [],
         currentStep = null,
         resumeWhenFound,
-        TourStatus = {
+        statuses = {
             OFF: 0,
             ON: 1,
-            PAUSED: 2,
-            WAITING: 3
+            PAUSED: 2
         },
-        tourStatus = TourStatus.OFF,
+        tourStatus = statuses.OFF,
         options = TourConfig.getAll();
 
-    //polyfill "off"
-    self.off = self.removeListener;
+    ezEventEmitter.mixin(self);
 
     /**
      * Closer to $evalAsync, just resolves a promise
@@ -27,7 +24,9 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      * @returns {Promise}
      */
     function digest() {
-        return $q.resolve();
+        return $q(function (resolve) {
+            $timeout(resolve);
+        });
     }
 
     /**
@@ -141,13 +140,27 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
     }
 
     /**
+     * Used by showStep and hideStep to trigger popover events
+     *
+     * @param step
+     * @param eventName
+     * @returns {*}
+     */
+    function dispatchEvent(step, eventName) {
+        return $q(function (resolve) {
+            step.element[0].dispatchEvent(new CustomEvent(eventName));
+            resolve();
+        });
+    }
+
+    /**
      * A safe way to invoke a possibly null event handler
      *
      * @param handler
      * @returns {*}
      */
     function handleEvent(handler) {
-        return (handler || digest)();
+        return (handler || $q.resolve)();
     }
 
     /**
@@ -256,21 +269,37 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      * @param step
      * @returns {promise}
      */
-    self.showStep = async function (step) {
+    self.showStep = function (step) {
         if (!step) {
-            throw 'No step.';
+            return $q.reject('No step.');
         }
 
-        await handleEvent(step.config('onShow'));
+        return handleEvent(step.config('onShow')).then(function () {
 
-        TourStepService.showStep(step, self);
+            if (step.config('backdrop')) {
+                uiTourBackdrop.createForElement(step.element, step.config('preventScrolling'), step.config('fixed'), step.config('onBackdropClick'), step.config('backdropBorderRadius'));
+            }
 
-        await digest();
-        await handleEvent(step.config('onShown'));
+        }).then(function () {
 
-        self.emit('stepShown', step);
-        step.isNext = isNext;
-        step.isPrev = isPrev;
+            step.element.addClass('ui-tour-active-step');
+            return dispatchEvent(step, 'uiTourShow');
+
+        }).then(function () {
+
+            return digest();
+
+        }).then(function () {
+
+            return handleEvent(step.config('onShown'));
+
+        }).then(function () {
+
+            self.emit('stepShown', step);
+            step.isNext = isNext;
+            step.isPrev = isPrev;
+
+        });
     };
 
     /**
@@ -280,19 +309,29 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      * @param step
      * @returns {Promise}
      */
-    self.hideStep = async function (step) {
+    self.hideStep = function (step) {
         if (!step) {
-            throw 'No step.';
+            return $q.reject('No step.');
         }
 
-        await handleEvent(step.config('onHide'));
+        return handleEvent(step.config('onHide')).then(function () {
 
-        TourStepService.hideStep(step);
+            step.element.removeClass('ui-tour-active-step');
+            return dispatchEvent(step, 'uiTourHide');
 
-        await digest();
-        await handleEvent(step.config('onHidden'));
+        }).then(function () {
 
-        self.emit('stepHidden', step);
+            return digest();
+
+        }).then(function () {
+
+            return handleEvent(step.config('onHidden'));
+
+        }).then(function () {
+
+            self.emit('stepHidden', step);
+
+        });
     };
 
     /**
@@ -349,20 +388,20 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      *
      * @public
      */
-    self.startAt = async function (stepOrStepIdOrIndex) {
-        await handleEvent(options.onStart);
+    self.startAt = function (stepOrStepIdOrIndex) {
+        return handleEvent(options.onStart).then(function () {
 
-        const step = getStep(stepOrStepIdOrIndex);
+            var step = getStep(stepOrStepIdOrIndex);
 
-        setCurrentStep(step);
-        tourStatus = TourStatus.ON;
-        self.emit('started', step);
+            setCurrentStep(step);
+            tourStatus = statuses.ON;
+            self.emit('started', step);
+            if (options.useHotkeys) {
+                setHotKeys();
+            }
+            return self.showStep(getCurrentStep());
 
-        if (options.useHotkeys) {
-            setHotKeys();
-        }
-
-        return self.showStep(getCurrentStep());
+        });
     };
 
     /**
@@ -370,22 +409,25 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      *
      * @public
      */
-    self.end = async function () {
-        await handleEvent(options.onEnd);
+    self.end = function () {
+        return handleEvent(options.onEnd).then(function () {
 
-        if (getCurrentStep()) {
-            uiTourBackdrop.hide();
-            await self.hideStep(getCurrentStep());
-        }
+            if (getCurrentStep()) {
+                uiTourBackdrop.hide();
+                return self.hideStep(getCurrentStep());
+            }
 
-        setCurrentStep(null);
-        self.emit('ended');
-        tourStatus = TourStatus.OFF;
-        resumeWhenFound = null;
+        }).then(function () {
 
-        if (options.useHotkeys) {
-            unsetHotKeys();
-        }
+            setCurrentStep(null);
+            self.emit('ended');
+            tourStatus = statuses.OFF;
+
+            if (options.useHotkeys) {
+                unsetHotKeys();
+            }
+
+        });
     };
 
     /**
@@ -393,15 +435,14 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      *
      * @public
      */
-    self.pause = async function () {
-        await handleEvent(options.onPause);
-
-        tourStatus = TourStatus.PAUSED;
-
-        uiTourBackdrop.hide();
-        await self.hideStep(getCurrentStep());
-
-        self.emit('paused', getCurrentStep());
+    self.pause = function () {
+        return handleEvent(options.onPause).then(function () {
+            tourStatus = statuses.PAUSED;
+            uiTourBackdrop.hide();
+            return self.hideStep(getCurrentStep());
+        }).then(function () {
+            self.emit('paused', getCurrentStep());
+        });
     };
 
     /**
@@ -409,12 +450,12 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      *
      * @public
      */
-    self.resume = async function () {
-        await handleEvent(options.onResume);
-
-        tourStatus = TourStatus.ON;
-        self.emit('resumed', getCurrentStep());
-        return self.showStep(getCurrentStep());
+    self.resume = function () {
+        return handleEvent(options.onResume).then(function () {
+            tourStatus = statuses.ON;
+            self.emit('resumed', getCurrentStep());
+            return self.showStep(getCurrentStep());
+        });
     };
 
     /**
@@ -443,7 +484,7 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      * @param {step | string | number} goTo Step object, step ID string, or step index to jump to
      * @returns {promise} Promise that resolves once the step is shown
      */
-    self.goTo = async function (goTo) {
+    self.goTo = function (goTo) {
         var currentStep = getCurrentStep(),
             stepToShow = getStep(goTo),
             actionMap = {
@@ -464,54 +505,60 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
             //if next or previous requires a redirect, it will happen here
             //the tour will pause here until the next view loads and
             //the next/prev step is found
-            await handleEvent(currentStep.config(actionMap[goTo].preEvent));
-            await self.hideStep(currentStep);
+            return handleEvent(currentStep.config(actionMap[goTo].preEvent)).then(function () {
 
-            //if a redirect occurred during onNext or onPrev, getCurrentStep() !== currentStep
-            //this will only be true if no redirect occurred, since the redirect sets current step
-            if (!currentStep[actionMap[goTo].navCheck] || currentStep[actionMap[goTo].navCheck] !== getCurrentStep().stepId) {
-                setCurrentStep(actionMap[goTo].getStep());
-                self.emit('stepChanged', getCurrentStep());
-            }
+                return self.hideStep(currentStep);
 
-            //if the next/prev step does not have a backdrop, hide it
-            if (getCurrentStep() && !getCurrentStep().config('backdrop')) {
-                uiTourBackdrop.hide();
-            }
+            }).then(function () {
 
-            //if the next/prev step does not prevent scrolling, allow it
-            if (getCurrentStep() && !getCurrentStep().config('preventScrolling')) {
-                uiTourBackdrop.shouldPreventScrolling(false);
-            }
+                //if a redirect occurred during onNext or onPrev, getCurrentStep() !== currentStep
+                //this will only be true if no redirect occurred, since the redirect sets current step
+                if (!currentStep[actionMap[goTo].navCheck] || currentStep[actionMap[goTo].navCheck] !== getCurrentStep().stepId) {
+                    setCurrentStep(actionMap[goTo].getStep());
+                    self.emit('stepChanged', getCurrentStep());
+                }
 
-            if (getCurrentStep()) {
-                return self.showStep(getCurrentStep());
-            }
+                //if the next/prev step does not have a backdrop, hide it
+                if (getCurrentStep() && !getCurrentStep().config('backdrop')) {
+                    uiTourBackdrop.hide();
+                }
 
-            return self.end();
+                //if the next/prev step does not prevent scrolling, allow it
+                if (getCurrentStep() && !getCurrentStep().config('preventScrolling')) {
+                    uiTourBackdrop.shouldPreventScrolling(false);
+                }
+
+            }).then(function () {
+
+                if (getCurrentStep()) {
+                    return self.showStep(getCurrentStep());
+                }
+
+                self.end();
+
+            });
         }
 
         //if no step found
         if (!stepToShow) {
-            throw 'No step.';
+            return $q.reject('No step.');
         }
 
         //take action
-        await self.hideStep(getCurrentStep());
-
-        //if the next/prev step does not have a backdrop, hide it
-        if (getCurrentStep().config('backdrop') && !stepToShow.config('backdrop')) {
-            uiTourBackdrop.hide();
-        }
-
-        //if the next/prev step does not prevent scrolling, allow it
-        if (getCurrentStep().config('backdrop') && !stepToShow.config('preventScrolling')) {
-            uiTourBackdrop.shouldPreventScrolling(false);
-        }
-
-        setCurrentStep(stepToShow);
-        self.emit('stepChanged', getCurrentStep());
-        return self.showStep(stepToShow);
+        return self.hideStep(getCurrentStep())
+            .then(function () {
+                //if the next/prev step does not have a backdrop, hide it
+                if (getCurrentStep().config('backdrop') && !stepToShow.config('backdrop')) {
+                    uiTourBackdrop.hide();
+                }
+                //if the next/prev step does not prevent scrolling, allow it
+                if (getCurrentStep().config('backdrop') && !stepToShow.config('preventScrolling')) {
+                    uiTourBackdrop.shouldPreventScrolling(false);
+                }
+                setCurrentStep(stepToShow);
+                self.emit('stepChanged', getCurrentStep());
+                return self.showStep(stepToShow);
+            });
     };
 
     /**
@@ -520,7 +567,7 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      * @public
      * @param waitForStep
      */
-    self.waitFor = async function (waitForStep) {
+    self.waitFor = function (waitForStep) {
         resumeWhenFound = function (step) {
             if (step.stepId === waitForStep) {
                 setCurrentStep(stepList[stepList.indexOf(step)]);
@@ -529,28 +576,7 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
             }
         };
         //must reject so that when used in a lifecycle hook the execution stops
-        await self.pause();
-        tourStatus = TourStatus.WAITING;
-        return $q.reject();
-    };
-
-    /**
-     * Creates a step from a configuration object
-     *
-     * @param {{}} options - Step options, all are static
-     */
-    self.createStep = function (options) {
-        const step = TourStepService.createStep(options, self);
-
-        if (self.initialized) {
-            self.addStep(step);
-        } else {
-            self.once('initialized', function () {
-                self.addStep(step);
-            });
-        }
-
-        return step;
+        return self.pause().then($q.reject);
     };
 
     /**
@@ -560,16 +586,6 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
      */
     self.getCurrentStep = function () {
         return getCurrentStep();
-    };
-
-    /**
-     * Forces the popover and backdrop to reposition
-     */
-    self.reposition = function () {
-        if (getCurrentStep()) {
-            getCurrentStep().reposition();
-            uiTourBackdrop.reposition();
-        }
     };
 
     /**
@@ -586,7 +602,7 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
     /**
      * @enum TourStatus
      */
-    self.Status = TourStatus;
+    self.status = statuses;
 
     //------------------ end Public API ------------------
 
@@ -599,6 +615,4 @@ export default function uiTourController($timeout, $q, $filter, $document, TourC
     };
     self._getCurrentStep = getCurrentStep;
     self._setCurrentStep = setCurrentStep;
-
-    return self;
 }

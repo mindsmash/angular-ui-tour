@@ -23,7 +23,7 @@
     "ngSmoothScroll": "2.0.0",
     "angular-sanitize": "1.6.5",
     "ez-ng": "0.1.8",
-    "angular-hotkeys": "git@github.com:mindsmash/angular-hotkeys.git#c1d7399c26413b2f0c1d3fa87cadd020f652a63e"
+    "angular-hotkeys": "git@github.com:mindsmash/angular-hotkeys.git#84275f0b78968993d1ec60f2f186413e22842fcf"
   },
   "devDependencies": {
     "angular-mocks": "1.6.5",

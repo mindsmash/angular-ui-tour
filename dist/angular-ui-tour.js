@@ -1,12 +1,12 @@
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(typeof exports === 'object' && typeof module === 'object')
-		module.exports = factory(require("angular"), require("angular-sanitize"), require("angular-bootstrap"), require("ngSmoothScroll"), require("ez-ng"), require("angular-hotkeys"));
+		module.exports = factory(require("angular"), require("angular-sanitize"), require("angular-ui-bootstrap"), require("ngSmoothScroll"), require("ez-ng"), require("angular-hotkeys"));
 	else if(typeof define === 'function' && define.amd)
-		define("uiTour", ["angular", "angular-sanitize", "angular-bootstrap", "ngSmoothScroll", "ez-ng", "angular-hotkeys"], factory);
+		define("uiTour", ["angular", "angular-sanitize", "angular-ui-bootstrap", "ngSmoothScroll", "ez-ng", "angular-hotkeys"], factory);
 	else if(typeof exports === 'object')
-		exports["uiTour"] = factory(require("angular"), require("angular-sanitize"), require("angular-bootstrap"), require("ngSmoothScroll"), require("ez-ng"), require("angular-hotkeys"));
+		exports["uiTour"] = factory(require("angular"), require("angular-sanitize"), require("angular-ui-bootstrap"), require("ngSmoothScroll"), require("ez-ng"), require("angular-hotkeys"));
 	else
-		root["uiTour"] = factory(root["angular"], root["angular-sanitize"], root["angular-bootstrap"], root["ngSmoothScroll"], root["ez-ng"], root["angular-hotkeys"]);
+		root["uiTour"] = factory(root["angular"], root["angular-sanitize"], root["angular-ui-bootstrap"], root["ngSmoothScroll"], root["ez-ng"], root["angular-hotkeys"]);
 })(this, function(__WEBPACK_EXTERNAL_MODULE_1__, __WEBPACK_EXTERNAL_MODULE_2__, __WEBPACK_EXTERNAL_MODULE_3__, __WEBPACK_EXTERNAL_MODULE_4__, __WEBPACK_EXTERNAL_MODULE_5__, __WEBPACK_EXTERNAL_MODULE_6__) {
 return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
@@ -106,7 +106,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /* 3 */
 /***/ function(module, exports) {
 
-	module.exports = __WEBPACK_EXTERNAL_MODULE_3__;
+	module.exports = require("angular-ui-bootstrap");
 
 /***/ },
 /* 4 */
